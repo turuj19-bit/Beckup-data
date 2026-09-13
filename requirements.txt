@@ -1,4 +1,0 @@
-flask
-gspread
-google-auth
-supabase
