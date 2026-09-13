@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinkron Data — Supabase &amp; Google Sheets</title>
+<style>
+  :root {
+    --bg: #12181c;
+    --panel: #1a2229;
+    --panel-border: #2a343c;
+    --text: #e8edf0;
+    --text-dim: #8fa0aa;
+    --accent: #4fd1c5;
+    --accent-dim: #2f6b64;
+    --danger: #e0674f;
+    --field-bg: #0f1519;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .panel .subtitle {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .profile-select-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  select, input {
+    background: var(--field-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 14px;
+    width: 100%;
+  }
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .profile-select-row select {
+    flex: 1;
+    min-width: 160px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin: 12px 0 5px;
+  }
+  label:first-child { margin-top: 0; }
+  textarea {
+    background: var(--field-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 13px;
+    width: 100%;
+    min-height: 90px;
+    font-family: ui-monospace, monospace;
+    resize: vertical;
+  }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  button:hover { opacity: 0.88; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #08201d; }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--panel-border); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-block { width: 100%; margin-top: 8px; }
+  .sync-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .sync-buttons button {
+    padding: 16px 12px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sync-buttons .direction { font-size: 13px; opacity: 0.8; font-weight: 400; }
+  #btnSheetToSupabase { background: #274a48; color: var(--text); }
+  #btnSupabaseToSheet { background: #2d3e52; color: var(--text); }
+  .log {
+    margin-top: 14px;
+    font-size: 13px;
+    padding: 12px;
+    border-radius: 6px;
+    display: none;
+    white-space: pre-wrap;
+  }
+  .log.show { display: block; }
+  .log.success { background: rgba(79, 209, 197, 0.12); border: 1px solid var(--accent-dim); color: var(--accent); }
+  .log.error { background: rgba(224, 103, 79, 0.12); border: 1px solid var(--danger); color: var(--danger); }
+  .log.loading { background: rgba(143, 160, 170, 0.1); border: 1px solid var(--panel-border); color: var(--text-dim); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .save-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .save-row input { flex: 1; }
+  .empty-state {
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 8px 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sinkron Data</h1>
+  <p>Backup dua arah antara Supabase dan Google Sheets. Kredensial disimpan di browser ini saja, tidak ke server manapun.</p>
+</header>
+
+<main>
+
+  <div class="panel">
+    <h2>Isian kredensial</h2>
+    <p class="subtitle">Pilih yang tersimpan, atau isi manual di bawah.</p>
+
+    <div class="profile-select-row">
+      <select id="profileSelect">
+        <option value="">— Isi manual / belum ada tersimpan —</option>
+      </select>
+      <button class="btn-danger" id="btnDeleteProfile" type="button">Hapus</button>
+    </div>
+
+    <label for="f_supabase_url">Supabase Project URL</label>
+    <input id="f_supabase_url" placeholder="https://xxxxx.supabase.co">
+
+    <label for="f_supabase_key">Supabase service_role key</label>
+    <input id="f_supabase_key" placeholder="eyJhbGciOi...">
+
+    <div class="row2">
+      <div>
+        <label for="f_supabase_table">Nama tabel Supabase</label>
+        <input id="f_supabase_table" placeholder="users">
+      </div>
+      <div>
+        <label for="f_unique_key">Kolom kunci unik</label>
+        <input id="f_unique_key" value="id" placeholder="id">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label for="f_sheet_id">Google Sheet ID</label>
+        <input id="f_sheet_id" placeholder="dari URL sheet">
+      </div>
+      <div>
+        <label for="f_sheet_tab">Nama tab/sheet</label>
+        <input id="f_sheet_tab" placeholder="Sheet1">
+      </div>
+    </div>
+    <div class="hint">Sheet ID diambil dari URL: docs.google.com/spreadsheets/d/<b>SHEET_ID_DI_SINI</b>/edit</div>
+
+    <label for="f_service_account">Isi file JSON service account Google</label>
+    <textarea id="f_service_account" placeholder='{"type": "service_account", ...}'></textarea>
+    <div class="hint">Jangan lupa share Sheet-nya ke email "client_email" di dalam JSON ini (akses Editor).</div>
+
+    <div class="save-row">
+      <input id="f_profile_name" placeholder="Nama buat disimpan (misal: Bot VPS Sanzy)">
+      <button class="btn-secondary" id="btnSaveProfile" type="button">Simpan di browser ini</button>
+    </div>
+
+    <div class="sync-buttons">
+      <button class="btn-block" id="btnSheetToSupabase" type="button">
+        Sheets → Supabase
+        <span class="direction">Tarik data dari Sheets, isi/update ke Supabase</span>
+      </button>
+      <button class="btn-block" id="btnSupabaseToSheet" type="button">
+        Supabase → Sheets
+        <span class="direction">Backup data Supabase ke Sheets</span>
+      </button>
+    </div>
+
+    <div id="logBox" class="log"></div>
+  </div>
+
+</main>
+
+<script>
+const FIELDS = ["supabase_url", "supabase_key", "supabase_table", "unique_key", "sheet_id", "sheet_tab", "service_account_json"];
+const STORAGE_KEY = "sinkron_data_profiles";
+
+function loadProfilesFromStorage() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveProfilesToStorage(profiles) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+}
+
+function refreshProfileDropdown() {
+  const profiles = loadProfilesFromStorage();
+  const select = document.getElementById('profileSelect');
+  select.innerHTML = '<option value="">— Isi manual / belum ada tersimpan —</option>';
+  Object.keys(profiles).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+}
+
+function getFormData() {
+  const data = {};
+  FIELDS.forEach(f => data[f] = document.getElementById('f_' + f).value.trim());
+  return data;
+}
+
+function setFormData(data) {
+  FIELDS.forEach(f => document.getElementById('f_' + f).value = data[f] || '');
+}
+
+document.getElementById('profileSelect').addEventListener('change', (e) => {
+  const profiles = loadProfilesFromStorage();
+  const selected = profiles[e.target.value];
+  if (selected) {
+    setFormData(selected);
+    document.getElementById('f_profile_name').value = e.target.value;
+  }
+});
+
+document.getElementById('btnSaveProfile').addEventListener('click', () => {
+  const name = document.getElementById('f_profile_name').value.trim();
+  if (!name) {
+    alert('Isi dulu nama buat penyimpanan (misal: nama project kamu).');
+    return;
+  }
+  const data = getFormData();
+  try {
+    JSON.parse(data.service_account_json);
+  } catch {
+    alert('Isi JSON service account tidak valid. Pastikan copy-paste seluruh isi file JSON-nya.');
+    return;
+  }
+  const profiles = loadProfilesFromStorage();
+  profiles[name] = data;
+  saveProfilesToStorage(profiles);
+  refreshProfileDropdown();
+  document.getElementById('profileSelect').value = name;
+  showLog('success', `Tersimpan sebagai "${name}" di browser ini.`);
+});
+
+document.getElementById('btnDeleteProfile').addEventListener('click', () => {
+  const name = document.getElementById('profileSelect').value;
+  if (!name) return;
+  if (!confirm(`Hapus "${name}" dari penyimpanan browser?`)) return;
+  const profiles = loadProfilesFromStorage();
+  delete profiles[name];
+  saveProfilesToStorage(profiles);
+  refreshProfileDropdown();
+  setFormData({});
+  document.getElementById('f_profile_name').value = '';
+});
+
+function showLog(type, message) {
+  const box = document.getElementById('logBox');
+  box.className = `log show ${type}`;
+  box.textContent = message;
+}
+
+async function runBackup(direction) {
+  const data = getFormData();
+  const missing = FIELDS.filter(f => !data[f]);
+  if (missing.length > 0) {
+    showLog('error', 'Masih ada field kosong: ' + missing.join(', '));
+    return;
+  }
+  try {
+    JSON.parse(data.service_account_json);
+  } catch {
+    showLog('error', 'Isi JSON service account tidak valid.');
+    return;
+  }
+
+  showLog('loading', 'Memproses, tunggu sebentar...');
+  const btnIds = ['btnSheetToSupabase', 'btnSupabaseToSheet'];
+  btnIds.forEach(b => document.getElementById(b).disabled = true);
+  try {
+    const res = await fetch(`/api/backup/${direction}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      showLog('error', 'Gagal: ' + result.error);
+    } else {
+      showLog('success', result.message);
+    }
+  } catch (err) {
+    showLog('error', 'Gagal: ' + err.message);
+  } finally {
+    btnIds.forEach(b => document.getElementById(b).disabled = false);
+  }
+}
+
+document.getElementById('btnSheetToSupabase').addEventListener('click', () => runBackup('sheet-to-supabase'));
+document.getElementById('btnSupabaseToSheet').addEventListener('click', () => runBackup('supabase-to-sheet'));
+
+refreshProfileDropdown();
+</script>
+
+</body>
+</html>
